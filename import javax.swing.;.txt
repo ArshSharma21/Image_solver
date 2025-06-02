@@ -1,0 +1,545 @@
+import javax.swing.*; 
+
+import java.awt.*; 
+
+import java.awt.event.ActionEvent; 
+
+import java.awt.event.ActionListener; 
+
+import java.awt.image.BufferedImage; 
+
+import java.io.IOException; 
+
+import java.net.URL; 
+
+import java.util.ArrayList; 
+
+import java.util.Collections; 
+
+import java.util.Random; 
+
+import javax.imageio.ImageIO; 
+
+ 
+
+public class ImagePuzzleProblem extends JFrame { 
+
+ 
+
+    private JPanel puzzlePanel; 
+
+    private JButton[][] tiles; 
+
+    private BufferedImage originalImage; 
+
+    private BufferedImage[] tileImages; 
+
+    private int gridSize = 3; 
+
+    private int emptyRow, emptyCol; 
+
+    private int tileSize = 100; 
+
+    private JComboBox<Integer> sizeSelector; 
+
+    private JButton newGameButton; 
+
+    private JButton showSolutionButton; 
+
+ 
+
+    public ImagePuzzleProblem() { 
+
+        setTitle("Image Puzzle Game"); 
+
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); 
+
+        setLayout(new BorderLayout()); 
+
+ 
+
+        // Top panel with controls 
+
+        JPanel controlPanel = new JPanel(); 
+
+        sizeSelector = new JComboBox<>(new Integer[]{2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}); 
+
+        sizeSelector.setSelectedItem(3); 
+
+        newGameButton = new JButton("New Game"); 
+
+        showSolutionButton = new JButton("Show Solution"); 
+
+ 
+
+        controlPanel.add(new JLabel("Grid Size:")); 
+
+        controlPanel.add(sizeSelector); 
+
+        controlPanel.add(newGameButton); 
+
+        controlPanel.add(showSolutionButton); 
+
+        add(controlPanel, BorderLayout.NORTH); 
+
+ 
+
+        // Puzzle panel 
+
+        puzzlePanel = new JPanel(); 
+
+        puzzlePanel.setLayout(new GridLayout(gridSize, gridSize, 2, 2)); 
+
+        add(puzzlePanel, BorderLayout.CENTER); 
+
+ 
+
+        // Event listeners 
+
+        newGameButton.addActionListener(e -> startNewGame()); 
+
+ 
+
+        showSolutionButton.addActionListener(e -> { 
+
+            int moves = computeMinimumMoves(); 
+
+            JOptionPane.showMessageDialog(ImagePuzzleProblem.this, 
+
+                    "This puzzle can be solved in approximately " + moves + " moves.", 
+
+                    "Shortest Solution", 
+
+                    JOptionPane.INFORMATION_MESSAGE); 
+
+        }); 
+
+ 
+
+        try { 
+
+            originalImage = ImageIO.read(new URL("https://picsum.photos/800/800")); 
+
+            startNewGame(); 
+
+        } catch (IOException ex) { 
+
+            JOptionPane.showMessageDialog(this, "Error loading image: " + ex.getMessage(), 
+
+                    "Error", JOptionPane.ERROR_MESSAGE); 
+
+            originalImage = createFallbackImage(); 
+
+            startNewGame(); 
+
+        } 
+
+ 
+
+        pack(); 
+
+        setLocationRelativeTo(null); 
+
+    } 
+
+ 
+
+    private BufferedImage createFallbackImage() { 
+
+        BufferedImage img = new BufferedImage(800, 800, BufferedImage.TYPE_INT_RGB); 
+
+        Graphics2D g2d = img.createGraphics(); 
+
+        GradientPaint gradient = new GradientPaint(0, 0, Color.BLUE, 800, 800, Color.RED); 
+
+        g2d.setPaint(gradient); 
+
+        g2d.fillRect(0, 0, 800, 800); 
+
+        g2d.setColor(Color.WHITE); 
+
+        g2d.setFont(new Font("Arial", Font.BOLD, 48)); 
+
+        g2d.drawString("PUZZLE GAME", 200, 400); 
+
+        g2d.dispose(); 
+
+        return img; 
+
+    } 
+
+ 
+
+    private void startNewGame() { 
+
+        gridSize = (Integer) sizeSelector.getSelectedItem(); 
+
+        if (gridSize < 1 || gridSize > 15) { 
+
+            JOptionPane.showMessageDialog(this, "Grid size must be between 1 and 15", 
+
+                    "Invalid Size", JOptionPane.ERROR_MESSAGE); 
+
+            return; 
+
+        } 
+
+ 
+
+        tileSize = Math.max(40, Math.min(100, 800 / gridSize)); 
+
+        puzzlePanel.removeAll(); 
+
+        puzzlePanel.setLayout(new GridLayout(gridSize, gridSize, 2, 2)); 
+
+        tiles = new JButton[gridSize][gridSize]; 
+
+        tileImages = splitImage(originalImage, gridSize); 
+
+ 
+
+        ArrayList<Integer> tileIndices = new ArrayList<>(); 
+
+        for (int i = 0; i < gridSize * gridSize; i++) { 
+
+            tileIndices.add(i); 
+
+        } 
+
+ 
+
+        do { 
+
+            Collections.shuffle(tileIndices); 
+
+        } while (!isSolvable(tileIndices, gridSize)); 
+
+ 
+
+        int emptyIndex = tileIndices.indexOf(gridSize * gridSize - 1); 
+
+        emptyRow = emptyIndex / gridSize; 
+
+        emptyCol = emptyIndex % gridSize; 
+
+ 
+
+        for (int row = 0; row < gridSize; row++) { 
+
+            for (int col = 0; col < gridSize; col++) { 
+
+                int index = row * gridSize + col; 
+
+                int tileIndex = tileIndices.get(index); 
+
+ 
+
+                if (tileIndex == gridSize * gridSize - 1) { 
+
+                    tiles[row][col] = new JButton(); 
+
+                    tiles[row][col].setBackground(Color.BLACK); 
+
+                } else { 
+
+                    BufferedImage tileImageWithNumber = new BufferedImage(tileSize, tileSize, BufferedImage.TYPE_INT_ARGB); 
+
+                    Graphics2D g = tileImageWithNumber.createGraphics(); 
+
+                    g.drawImage(tileImages[tileIndex].getScaledInstance(tileSize, tileSize, Image.SCALE_SMOOTH), 0, 0, null); 
+
+                    g.setColor(Color.WHITE); 
+
+                    g.setFont(new Font("Arial", Font.BOLD, tileSize / 4)); 
+
+                    g.drawString(String.valueOf(tileIndex + 1), tileSize / 4, tileSize / 2); 
+
+                    g.dispose(); 
+
+ 
+
+                    tiles[row][col] = new JButton(new ImageIcon(tileImageWithNumber)); 
+
+                } 
+
+ 
+
+                tiles[row][col].setPreferredSize(new Dimension(tileSize, tileSize)); 
+
+                tiles[row][col].addActionListener(new TileClickListener(row, col)); 
+
+                puzzlePanel.add(tiles[row][col]); 
+
+            } 
+
+        } 
+
+ 
+
+        pack(); 
+
+        revalidate(); 
+
+        repaint(); 
+
+    } 
+
+ 
+
+    private BufferedImage[] splitImage(BufferedImage image, int gridSize) { 
+
+        int pieceWidth = image.getWidth() / gridSize; 
+
+        int pieceHeight = image.getHeight() / gridSize; 
+
+        BufferedImage[] pieces = new BufferedImage[gridSize * gridSize]; 
+
+ 
+
+        for (int row = 0; row < gridSize; row++) { 
+
+            for (int col = 0; col < gridSize; col++) { 
+
+                pieces[row * gridSize + col] = image.getSubimage( 
+
+                        col * pieceWidth, 
+
+                        row * pieceHeight, 
+
+                        pieceWidth, 
+
+                        pieceHeight); 
+
+            } 
+
+        } 
+
+        return pieces; 
+
+    } 
+
+ 
+
+    private boolean isSolvable(ArrayList<Integer> puzzle, int size) { 
+
+        int inversions = 0; 
+
+        for (int i = 0; i < puzzle.size() - 1; i++) { 
+
+            for (int j = i + 1; j < puzzle.size(); j++) { 
+
+                if (puzzle.get(i) != size * size - 1 && 
+
+                        puzzle.get(j) != size * size - 1 && 
+
+                        puzzle.get(i) > puzzle.get(j)) { 
+
+                    inversions++; 
+
+                } 
+
+            } 
+
+        } 
+
+ 
+
+        if (size % 2 == 1) { 
+
+            return inversions % 2 == 0; 
+
+        } else { 
+
+            int emptyRow = puzzle.indexOf(size * size - 1) / size; 
+
+            return (emptyRow + inversions) % 2 == 1; 
+
+        } 
+
+    } 
+
+ 
+
+    private class TileClickListener implements ActionListener { 
+
+        private int row, col; 
+
+ 
+
+        public TileClickListener(int row, int col) { 
+
+            this.row = row; 
+
+            this.col = col; 
+
+        } 
+
+ 
+
+        @Override 
+
+        public void actionPerformed(ActionEvent e) { 
+
+            if ((Math.abs(row - emptyRow) == 1 && col == emptyCol) || 
+
+                    (Math.abs(col - emptyCol) == 1 && row == emptyRow)) { 
+
+ 
+
+                tiles[emptyRow][emptyCol].setIcon(tiles[row][col].getIcon()); 
+
+                tiles[row][col].setIcon(null); 
+
+                emptyRow = row; 
+
+                emptyCol = col; 
+
+ 
+
+                if (isPuzzleSolved()) { 
+
+                    JOptionPane.showMessageDialog(ImagePuzzleProblem.this, 
+
+                            "Congratulations! You solved the puzzle!", 
+
+                            "Puzzle Solved", JOptionPane.INFORMATION_MESSAGE); 
+
+                } 
+
+            } 
+
+        } 
+
+    } 
+
+ 
+
+    private boolean isPuzzleSolved() { 
+
+        for (int row = 0; row < gridSize; row++) { 
+
+            for (int col = 0; col < gridSize; col++) { 
+
+                int expectedIndex = row * gridSize + col; 
+
+                if (row == gridSize - 1 && col == gridSize - 1) { 
+
+                    if (tiles[row][col].getIcon() != null) return false; 
+
+                } else { 
+
+                    if (tiles[row][col].getIcon() == null || 
+
+                            !compareIcons(tiles[row][col].getIcon(), tileImages[expectedIndex])) { 
+
+                        return false; 
+
+                    } 
+
+                } 
+
+            } 
+
+        } 
+
+        return true; 
+
+    } 
+
+ 
+
+    private boolean compareIcons(Icon icon, BufferedImage image) { 
+
+        if (!(icon instanceof ImageIcon)) return false; 
+
+        ImageIcon imageIcon = (ImageIcon) icon; 
+
+        BufferedImage iconImage = new BufferedImage( 
+
+                imageIcon.getIconWidth(), 
+
+                imageIcon.getIconHeight(), 
+
+                BufferedImage.TYPE_INT_RGB); 
+
+        Graphics g = iconImage.createGraphics(); 
+
+        imageIcon.paintIcon(null, g, 0, 0); 
+
+        g.dispose(); 
+
+ 
+
+        return iconImage.getWidth() == image.getWidth() && 
+
+                iconImage.getHeight() == image.getHeight(); 
+
+    } 
+
+ 
+
+    private int computeMinimumMoves() { 
+
+        ArrayList<Integer> currentPuzzle = new ArrayList<>(); 
+
+        for (int row = 0; row < gridSize; row++) { 
+
+            for (int col = 0; col < gridSize; col++) { 
+
+                Icon icon = tiles[row][col].getIcon(); 
+
+                int index = -1; 
+
+                for (int i = 0; i < tileImages.length; i++) { 
+
+                    if (icon != null && compareIcons(icon, tileImages[i])) { 
+
+                        index = i; 
+
+                        break; 
+
+                    } 
+
+                } 
+
+                currentPuzzle.add(index == -1 ? gridSize * gridSize - 1 : index); 
+
+            } 
+
+        } 
+
+ 
+
+        int inversions = 0; 
+
+        for (int i = 0; i < currentPuzzle.size() - 1; i++) { 
+
+            for (int j = i + 1; j < currentPuzzle.size(); j++) { 
+
+                if (currentPuzzle.get(i) != gridSize * gridSize - 1 && 
+
+                        currentPuzzle.get(j) != gridSize * gridSize - 1 && 
+
+                        currentPuzzle.get(i) > currentPuzzle.get(j)) { 
+
+                    inversions++; 
+
+                } 
+
+            } 
+
+        } 
+
+        return inversions; // Approximate solution cost 
+
+    } 
+
+ 
+
+    public static void main(String[] args) { 
+
+        SwingUtilities.invokeLater(() -> new ImagePuzzleProblem().setVisible(true)); 
+
+    } 
+
+} 
